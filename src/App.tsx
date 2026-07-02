@@ -5,12 +5,26 @@ import { AdminPage } from "./pages/AdminPage";
 
 export function App() {
   return (
-    <div>
-      <nav style={{ display: "flex", gap: "1rem", padding: "1rem", borderBottom: "1px solid #ddd" }}>
-        <NavLink to="/" end>Feed</NavLink>
-        <NavLink to="/live">Live</NavLink>
-        <NavLink to="/admin">Admin</NavLink>
-      </nav>
+    <div className="app-shell">
+      <header className="header">
+        <div className="header-inner">
+          <div className="header-logo">
+            NEWS<span>FEED</span>
+          </div>
+          <nav className="header-nav">
+            <NavLink to="/" end className={({ isActive }) => "nav-link" + (isActive ? " active" : "")}>
+              Feed
+            </NavLink>
+            <NavLink to="/live" className={({ isActive }) => "nav-link" + (isActive ? " active" : "")}>
+              Live Markets
+            </NavLink>
+            <NavLink to="/admin" className={({ isActive }) => "nav-link" + (isActive ? " active" : "")}>
+              Admin
+            </NavLink>
+          </nav>
+          <span className="header-tagline">Aggregated · Real-time · Multi-source</span>
+        </div>
+      </header>
       <Routes>
         <Route path="/" element={<FeedPage />} />
         <Route path="/live" element={<LivePage />} />
