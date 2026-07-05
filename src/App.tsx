@@ -2,6 +2,7 @@ import { NavLink, Route, Routes } from "react-router-dom";
 import { FeedPage } from "./pages/FeedPage";
 import { LivePage } from "./pages/LivePage";
 import { AdminPage } from "./pages/AdminPage";
+import { AboutPage } from "./pages/AboutPage";
 
 export function App() {
   return (
@@ -21,6 +22,9 @@ export function App() {
             <NavLink to="/admin" className={({ isActive }) => "nav-link" + (isActive ? " active" : "")}>
               Admin
             </NavLink>
+            <NavLink to="/about" className={({ isActive }) => "nav-link" + (isActive ? " active" : "")}>
+              About
+            </NavLink>
           </nav>
           <span className="header-tagline">Aggregated · Real-time · Multi-source</span>
         </div>
@@ -29,6 +33,7 @@ export function App() {
         <Route path="/" element={<FeedPage />} />
         <Route path="/live" element={<LivePage />} />
         <Route path="/admin" element={<AdminPage />} />
+        <Route path="/about" element={<AboutPage />} />
       </Routes>
     </div>
   );
