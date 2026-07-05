@@ -9,6 +9,25 @@ const STACK = [
   { layer: "Deploy", tool: "Docker Compose + nginx + Let's Encrypt" },
 ];
 
+const REPOS = [
+  {
+    name: "news-feed-backend",
+    url: "https://github.com/Ritheshhalma/news-feed-backend",
+    description:
+      "Django/DRF API, Celery pipeline, scraping adapters, DeepSeek article cleaning — primary focus of this project.",
+  },
+  {
+    name: "news-feed-frontend",
+    url: "https://github.com/Ritheshhalma/news-feed-frontend",
+    description: "React + Vite single-page app (Feed, Live, Admin, About tabs).",
+  },
+  {
+    name: "news-feed-deploy",
+    url: "https://github.com/Ritheshhalma/news-feed-deploy",
+    description: "Docker Compose stack, nginx reverse proxy config, and the deploy runbook.",
+  },
+];
+
 export function AboutPage() {
   return (
     <div className="admin-page">
@@ -81,6 +100,54 @@ export function AboutPage() {
             dead-letter requeue command for permanently failed tasks.
           </li>
         </ul>
+      </section>
+
+      <section className="about-section">
+        <p className="admin-section-title">Frontend &amp; Deploy</p>
+        <p className="about-text">
+          The frontend is a React + Vite single-page app using TanStack Query for data
+          fetching, with three functional tabs (Feed, Live, Admin) plus this About page.
+          Deploy is a Docker Compose stack — nginx reverse-proxies the API, WebSocket,
+          static frontend build, and Celery Flower (at <code>/flower/</code>), with TLS via
+          Let's Encrypt/certbot, running on a DigitalOcean droplet.
+        </p>
+      </section>
+
+      <section className="about-section">
+        <p className="admin-section-title">User Guide</p>
+        <ul className="about-list">
+          <li>
+            <strong>Feed</strong> — browse aggregated articles, filter by category, search,
+            click an article's image to expand it.
+          </li>
+          <li>
+            <strong>Live Markets</strong> — forex/stock rate tracker; updates automatically
+            without refreshing.
+          </li>
+          <li>
+            <strong>Admin</strong> — add a new source (RSS/HTML/Playwright), trigger a
+            manual refresh or full resync, see per-source fetch logs, and jump to Celery
+            Flower for task monitoring.
+          </li>
+        </ul>
+      </section>
+
+      <section className="about-section">
+        <p className="admin-section-title">GitHub Repositories</p>
+        <div className="admin-links">
+          {REPOS.map((repo) => (
+            <a
+              key={repo.name}
+              href={repo.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="admin-link-btn"
+              title={repo.description}
+            >
+              🔗 {repo.name}
+            </a>
+          ))}
+        </div>
       </section>
     </div>
   );
