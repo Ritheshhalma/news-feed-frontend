@@ -121,8 +121,8 @@ export function FeedPage() {
               <p className="empty-state-sub">Try adjusting your search or filters</p>
             </div>
           ) : (
-            data?.results.map((a: any, i: number) => (
-              <ArticleCard key={a.id} article={a} featured={i === 0 && page === 1 && !search && !categoryId && !sourceId} />
+            data?.results.map((a: any) => (
+              <ArticleCard key={a.id} article={a} />
             ))
           )}
         </div>

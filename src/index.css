@@ -659,6 +659,7 @@ img { display: block; max-width: 100%; }
   font-size: 0.78rem;
   font-weight: 500;
   color: var(--color-text);
+  white-space: nowrap;
   transition: all var(--transition);
 }
 .btn-sm:hover:not(:disabled) { border-color: var(--color-brand); color: var(--color-brand); }

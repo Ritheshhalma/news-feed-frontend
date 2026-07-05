@@ -1,5 +1,7 @@
-import { useState } from "react";
-import { useSources, useAddSource, useRefreshSource } from "../hooks/useSources";
+import { useEffect, useState } from "react";
+import {
+  useSources, useAddSource, useRefreshSource, useResyncSource, useJobStatus,
+} from "../hooks/useSources";
 
 const FLOWER_URL = import.meta.env.VITE_FLOWER_URL || "http://localhost:5555";
 const SWAGGER_URL = "/api/schema/swagger-ui/";
@@ -12,18 +14,126 @@ function formatDate(iso: string | null) {
   });
 }
 
+function SourceRow({ source, onChanged }: { source: any; onChanged: () => void }) {
+  const refreshSource = useRefreshSource();
+  const resyncSource = useResyncSource();
+  const [task, setTask] = useState<{ taskId: string; action: "refresh" | "resync" } | null>(null);
+  const [errorMsg, setErrorMsg] = useState("");
+  const jobStatus = useJobStatus(task?.taskId ?? null);
+  const latestLogStatus = (jobStatus.data as any[] | undefined)?.[0]?.status;
+
+  // Stay disabled for the task's real duration, not just the POST round-trip —
+  // clear once its SourceFetchLog leaves "started".
+  useEffect(() => {
+    if (task && latestLogStatus && latestLogStatus !== "started") {
+      setTask(null);
+      onChanged();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latestLogStatus]);
+
+  function showError(err: any, fallback: string) {
+    setErrorMsg(err?.response?.data?.detail || fallback);
+    setTimeout(() => setErrorMsg(""), 4000);
+  }
+
+  function handleRefresh() {
+    refreshSource.mutate(source.id, {
+      onSuccess: (res) => setTask({ taskId: res.data.task_id, action: "refresh" }),
+      onError: (err) => showError(err, "Failed to start refresh."),
+    });
+  }
+
+  function handleResync() {
+    resyncSource.mutate(source.id, {
+      onSuccess: (res) => setTask({ taskId: res.data.task_id, action: "resync" }),
+      onError: (err) => showError(err, "Failed to start resync."),
+    });
+  }
+
+  const refreshBusy = refreshSource.isPending || task?.action === "refresh";
+  const resyncBusy = resyncSource.isPending || task?.action === "resync";
+  const anyBusy = refreshBusy || resyncBusy;
+
+  return (
+    <tr>
+      <td style={{ fontWeight: 600 }}>{source.portal_name}</td>
+      <td>
+        <a href={source.url} target="_blank" rel="noopener noreferrer" className="table-url" title={source.url}>
+          {source.url}
+        </a>
+      </td>
+      <td>
+        <span style={{
+          fontSize: "0.72rem", fontWeight: 600,
+          padding: "2px 8px", borderRadius: 3,
+          background: source.source_type === "rss" ? "#eff6ff" : "#f0fdf4",
+          color: source.source_type === "rss" ? "#1d4ed8" : "#15803d",
+        }}>
+          {source.source_type.toUpperCase()}
+        </span>
+      </td>
+      <td>
+        <span className={`status-badge ${source.status}`}>
+          {source.status === "active" ? "● Active" : source.status === "failed" ? "✗ Failed" : source.status}
+        </span>
+        {source.error_message && (
+          <span title={source.error_message} style={{ marginLeft: 6, cursor: "help", color: "#f59e0b" }}>⚠</span>
+        )}
+      </td>
+      <td style={{ color: "var(--color-muted)", fontSize: "0.8rem" }}>
+        {formatDate(source.last_fetched_at)}
+        {errorMsg && (
+          <div style={{ color: "#dc2626", fontSize: "0.72rem", marginTop: 2 }}>{errorMsg}</div>
+        )}
+      </td>
+      <td>
+        <button
+          className="btn-sm"
+          onClick={handleRefresh}
+          disabled={anyBusy}
+          title="Discover new articles and update ones still on the listing page"
+        >
+          {refreshBusy ? "…" : "↻ Refresh"}
+        </button>
+      </td>
+      <td>
+        <button
+          className="btn-sm"
+          onClick={handleResync}
+          disabled={anyBusy}
+          title="Re-fetch every stored article directly from its own URL — fixes failures/wrong content even for articles no longer on the listing page"
+        >
+          {resyncBusy ? "…" : "⟳ Resync All"}
+        </button>
+      </td>
+    </tr>
+  );
+}
+
 export function AdminPage() {
   const { data: sources, refetch } = useSources();
-  const addSource    = useAddSource();
-  const refreshSource = useRefreshSource();
-  const [form, setForm] = useState({ portal_name: "", url: "", source_type: "rss" });
+  const addSource = useAddSource();
+  const [form, setForm] = useState({ portal_name: "", url: "" });
   const [addedMsg, setAddedMsg] = useState("");
+
+  // "bbc" / "BBC" / " BBC " should all reuse one portal, not fragment into
+  // separate rows — the backend already enforces this case-insensitively;
+  // this is just a heads-up so the casing choice isn't a surprise.
+  const trimmedName = form.portal_name.trim();
+  const existingPortalMatch = trimmedName
+    ? (sources ?? []).find(
+        (s: any) => s.portal_name.toLowerCase() === trimmedName.toLowerCase()
+      )
+    : null;
+  const reusingDifferentCasing =
+    existingPortalMatch && existingPortalMatch.portal_name !== trimmedName;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     addSource.mutate(form, {
       onSuccess: () => {
-        setForm({ portal_name: "", url: "", source_type: "rss" });
+        setForm({ portal_name: "", url: "" });
         setAddedMsg("Source added successfully.");
         refetch();
         setTimeout(() => setAddedMsg(""), 3000);
@@ -47,6 +157,11 @@ export function AdminPage() {
             onChange={(e) => setForm({ ...form, portal_name: e.target.value })}
             required
           />
+          {reusingDifferentCasing && (
+            <p style={{ color: "var(--color-muted)", fontSize: "0.72rem", margin: "4px 0 0" }}>
+              Will use existing portal "{existingPortalMatch.portal_name}"
+            </p>
+          )}
         </div>
         <div className="form-field">
           <label className="form-label">Feed / Page URL</label>
@@ -57,17 +172,6 @@ export function AdminPage() {
             onChange={(e) => setForm({ ...form, url: e.target.value })}
             required
           />
-        </div>
-        <div className="form-field">
-          <label className="form-label">Type</label>
-          <select
-            className="form-input"
-            value={form.source_type}
-            onChange={(e) => setForm({ ...form, source_type: e.target.value })}
-          >
-            <option value="rss">RSS Feed</option>
-            <option value="html">HTML Page</option>
-          </select>
         </div>
         <button className="btn-primary" type="submit" disabled={addSource.isPending}>
           {addSource.isPending ? "Adding…" : "+ Add Source"}
@@ -96,53 +200,17 @@ export function AdminPage() {
             <th>Type</th>
             <th>Status</th>
             <th>Last Fetched</th>
-            <th style={{ width: 90 }}></th>
+            <th style={{ width: 100 }}></th>
+            <th style={{ width: 130 }}></th>
           </tr>
         </thead>
         <tbody>
           {(sources ?? []).map((s: any) => (
-            <tr key={s.id}>
-              <td style={{ fontWeight: 600 }}>{s.portal_name}</td>
-              <td>
-                <a href={s.url} target="_blank" rel="noopener noreferrer" className="table-url" title={s.url}>
-                  {s.url}
-                </a>
-              </td>
-              <td>
-                <span style={{
-                  fontSize: "0.72rem", fontWeight: 600,
-                  padding: "2px 8px", borderRadius: 3,
-                  background: s.source_type === "rss" ? "#eff6ff" : "#f0fdf4",
-                  color: s.source_type === "rss" ? "#1d4ed8" : "#15803d",
-                }}>
-                  {s.source_type.toUpperCase()}
-                </span>
-              </td>
-              <td>
-                <span className={`status-badge ${s.status}`}>
-                  {s.status === "active" ? "● Active" : s.status === "failed" ? "✗ Failed" : s.status}
-                </span>
-                {s.error_message && (
-                  <span title={s.error_message} style={{ marginLeft: 6, cursor: "help", color: "#f59e0b" }}>⚠</span>
-                )}
-              </td>
-              <td style={{ color: "var(--color-muted)", fontSize: "0.8rem" }}>
-                {formatDate(s.last_fetched_at)}
-              </td>
-              <td>
-                <button
-                  className="btn-sm"
-                  onClick={() => refreshSource.mutate(s.id, { onSuccess: () => refetch() })}
-                  disabled={refreshSource.isPending}
-                >
-                  {refreshSource.isPending ? "…" : "↻ Refresh"}
-                </button>
-              </td>
-            </tr>
+            <SourceRow key={s.id} source={s} onChanged={refetch} />
           ))}
           {sources?.length === 0 && (
             <tr>
-              <td colSpan={6} style={{ textAlign: "center", color: "var(--color-muted)", padding: "2rem" }}>
+              <td colSpan={7} style={{ textAlign: "center", color: "var(--color-muted)", padding: "2rem" }}>
                 No sources configured yet.
               </td>
             </tr>
