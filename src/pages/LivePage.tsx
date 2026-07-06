@@ -9,21 +9,36 @@ function useLiveCardState(article: any) {
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
+    let closedByUs = false;
+    let attempt = 0;
+
     api.get(`/articles/${article.id}/live_state/`).then((res) => {
       const d = res.data?.data;
       if (d && Object.keys(d).length > 0) { setData(d); setConnected(true); }
     }).catch(() => {});
 
     const proto = window.location.protocol === "https:" ? "wss" : "ws";
-    const ws = new WebSocket(`${proto}://${window.location.host}/ws/live/${article.id}/`);
-    wsRef.current = ws;
-    ws.onmessage = (e) => {
-      try {
-        const d = JSON.parse(e.data);
-        if (d && Object.keys(d).length > 0) { setData(d); setConnected(true); }
-      } catch {}
+
+    const connect = () => {
+      const ws = new WebSocket(`${proto}://${window.location.host}/ws/live/${article.id}/`);
+      wsRef.current = ws;
+      ws.onmessage = (e) => {
+        try {
+          const d = JSON.parse(e.data);
+          if (d && Object.keys(d).length > 0) { setData(d); setConnected(true); }
+        } catch {}
+      };
+      ws.onclose = () => {
+        setConnected(false);
+        if (closedByUs) return;
+        const delay = Math.min(1000 * 2 ** attempt, 15000);
+        attempt += 1;
+        setTimeout(connect, delay);
+      };
     };
-    return () => ws.close();
+    connect();
+
+    return () => { closedByUs = true; wsRef.current?.close(); };
   }, [article.id]);
 
   return { data, connected };

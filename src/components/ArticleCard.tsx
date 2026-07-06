@@ -47,18 +47,32 @@ function useLiveRate(article: Article) {
 
   useEffect(() => {
     if (!article.is_live) return;
+    let closedByUs = false;
+    let attempt = 0;
+
     api.get(`/articles/${article.id}/live_state/`).then((res) => {
       const r = res.data?.data?.rate;
       if (r != null) setRate(r);
     }).catch(() => {});
 
     const proto = window.location.protocol === "https:" ? "wss" : "ws";
-    const ws = new WebSocket(`${proto}://${window.location.host}/ws/live/${article.id}/`);
-    wsRef.current = ws;
-    ws.onmessage = (e) => {
-      try { const d = JSON.parse(e.data); if (d.rate != null) setRate(d.rate); } catch {}
+
+    const connect = () => {
+      const ws = new WebSocket(`${proto}://${window.location.host}/ws/live/${article.id}/`);
+      wsRef.current = ws;
+      ws.onmessage = (e) => {
+        try { const d = JSON.parse(e.data); if (d.rate != null) setRate(d.rate); } catch {}
+      };
+      ws.onclose = () => {
+        if (closedByUs) return;
+        const delay = Math.min(1000 * 2 ** attempt, 15000);
+        attempt += 1;
+        setTimeout(connect, delay);
+      };
     };
-    return () => ws.close();
+    connect();
+
+    return () => { closedByUs = true; wsRef.current?.close(); };
   }, [article.id, article.is_live]);
 
   return rate;
